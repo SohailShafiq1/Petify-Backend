@@ -111,6 +111,17 @@ router.get("/my-orders", authMiddleware, async (req, res) => {
   }
 });
 
+// Get my sales (pets I sold)
+router.get("/my-sales", authMiddleware, async (req, res) => {
+  try {
+    const pets = await Pet.find({ ownerId: req.user.userId, isAvailable: false })
+      .sort({ soldAt: -1 });
+    return res.status(200).json({ pets });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
 // Get pets by category
 router.get("/category/:category", async (req, res) => {
   try {
@@ -118,6 +129,31 @@ router.get("/category/:category", async (req, res) => {
       category: req.params.category,
       isAvailable: true,
     }).sort({ createdAt: -1 });
+
+    return res.status(200).json({ pets });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Search pets
+router.get("/search", async (req, res) => {
+  try {
+    const query = (req.query.q || '').toString().trim();
+    if (!query) {
+      return res.status(200).json({ pets: [] });
+    }
+
+    const pets = await Pet.find({
+      isAvailable: true,
+      $or: [
+        { name: { $regex: query, $options: "i" } },
+        { category: { $regex: query, $options: "i" } },
+        { description: { $regex: query, $options: "i" } },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .limit(100);
 
     return res.status(200).json({ pets });
   } catch (error) {
@@ -205,10 +241,46 @@ router.post("/:id/buy", authMiddleware, async (req, res) => {
     pet.buyerContact = buyerContact.trim();
     pet.buyerAddress = buyerAddress.trim();
     pet.soldAt = new Date();
+    pet.deliveryStatus = "pending";
+    pet.deliveredAt = null;
     await pet.save();
 
     return res.status(200).json({
       message: "Purchase successful. Cash on Delivery confirmed.",
+      pet,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Mark delivery completed (owner only)
+router.post("/:id/complete-delivery", authMiddleware, async (req, res) => {
+  try {
+    const pet = await Pet.findById(req.params.id);
+
+    if (!pet) {
+      return res.status(404).json({ message: "Pet not found" });
+    }
+
+    if (pet.ownerId !== req.user.userId) {
+      return res.status(403).json({ message: "Not authorized to update delivery" });
+    }
+
+    if (pet.isAvailable) {
+      return res.status(400).json({ message: "Pet is not sold" });
+    }
+
+    if (pet.deliveryStatus === "completed") {
+      return res.status(400).json({ message: "Delivery already completed" });
+    }
+
+    pet.deliveryStatus = "completed";
+    pet.deliveredAt = new Date();
+    await pet.save();
+
+    return res.status(200).json({
+      message: "Delivery marked as completed",
       pet,
     });
   } catch (error) {

@@ -63,6 +63,15 @@ const petSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    deliveryStatus: {
+      type: String,
+      enum: ["pending", "completed"],
+      default: "pending",
+    },
+    deliveredAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
