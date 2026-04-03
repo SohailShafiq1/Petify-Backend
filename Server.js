@@ -12,6 +12,11 @@ const PORT = process.env.PORT || 5001;
 app.use(cors());
 app.use(express.json());
 
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 app.get("/", (req, res) => {
   res.status(200).json({ message: "Petify backend is running" });
 });
