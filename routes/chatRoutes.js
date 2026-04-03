@@ -5,6 +5,56 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+// Get chat threads for current user
+router.get("/my", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const pets = await Pet.find({
+      $or: [{ ownerId: userId }, { buyerId: userId }],
+    }).select("name ownerId buyerId imageUrl");
+
+    if (!pets.length) {
+      return res.status(200).json({ threads: [] });
+    }
+
+    const petIds = pets.map((pet) => pet._id.toString());
+    const petMap = new Map(pets.map((pet) => [pet._id.toString(), pet]));
+
+    const messages = await ChatMessage.find({ petId: { $in: petIds } })
+      .sort({ createdAt: -1 })
+      .limit(1000);
+
+    const threadsMap = new Map();
+    for (const message of messages) {
+      if (!threadsMap.has(message.petId)) {
+        const pet = petMap.get(message.petId);
+        if (!pet) continue;
+        threadsMap.set(message.petId, {
+          pet: {
+            id: pet._id,
+            name: pet.name,
+            ownerId: pet.ownerId,
+            buyerId: pet.buyerId || null,
+            imageUrl: pet.imageUrl || null,
+          },
+          lastMessage: {
+            id: message._id,
+            senderId: message.senderId,
+            senderName: message.senderName,
+            message: message.message,
+            createdAt: message.createdAt,
+          },
+        });
+      }
+    }
+
+    return res.status(200).json({ threads: Array.from(threadsMap.values()) });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
 // Get chat messages for a pet
 router.get("/:petId", authMiddleware, async (req, res) => {
   try {

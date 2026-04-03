@@ -47,6 +47,10 @@ const petSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    buyerId: {
+      type: String,
+      default: null,
+    },
     buyerContact: {
       type: String,
       default: null,

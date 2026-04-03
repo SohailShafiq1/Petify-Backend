@@ -101,16 +101,11 @@ router.get("/my-pets", authMiddleware, async (req, res) => {
   }
 });
 
-// Get pet by ID
-router.get("/:id", async (req, res) => {
+// Get my orders (pets I bought)
+router.get("/my-orders", authMiddleware, async (req, res) => {
   try {
-    const pet = await Pet.findById(req.params.id);
-
-    if (!pet) {
-      return res.status(404).json({ message: "Pet not found" });
-    }
-
-    return res.status(200).json({ pet });
+    const pets = await Pet.find({ buyerId: req.user.userId }).sort({ soldAt: -1 });
+    return res.status(200).json({ pets });
   } catch (error) {
     return res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -125,6 +120,21 @@ router.get("/category/:category", async (req, res) => {
     }).sort({ createdAt: -1 });
 
     return res.status(200).json({ pets });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Get pet by ID
+router.get("/:id", async (req, res) => {
+  try {
+    const pet = await Pet.findById(req.params.id);
+
+    if (!pet) {
+      return res.status(404).json({ message: "Pet not found" });
+    }
+
+    return res.status(200).json({ pet });
   } catch (error) {
     return res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -191,6 +201,7 @@ router.post("/:id/buy", authMiddleware, async (req, res) => {
 
     pet.isAvailable = false;
     pet.buyerName = buyerName.trim();
+    pet.buyerId = req.user.userId;
     pet.buyerContact = buyerContact.trim();
     pet.buyerAddress = buyerAddress.trim();
     pet.soldAt = new Date();
@@ -204,6 +215,7 @@ router.post("/:id/buy", authMiddleware, async (req, res) => {
     return res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
 
 // Delete pet
 router.delete("/:id", authMiddleware, async (req, res) => {
