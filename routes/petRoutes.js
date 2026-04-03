@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const Pet = require("../models/Pet");
+const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -156,6 +157,61 @@ router.get("/search", async (req, res) => {
       .limit(100);
 
     return res.status(200).json({ pets });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Get favorite pets
+router.get("/favorites", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const favoriteIds = user.favorites || [];
+    if (favoriteIds.length === 0) {
+      return res.status(200).json({ pets: [] });
+    }
+
+    const pets = await Pet.find({ _id: { $in: favoriteIds } }).sort({ createdAt: -1 });
+    return res.status(200).json({ pets });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Toggle favorite
+router.post("/:id/favorite", authMiddleware, async (req, res) => {
+  try {
+    const pet = await Pet.findById(req.params.id);
+    if (!pet) {
+      return res.status(404).json({ message: "Pet not found" });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const petId = pet._id.toString();
+    const favorites = user.favorites || [];
+    const alreadyFavorite = favorites.includes(petId);
+
+    if (alreadyFavorite) {
+      user.favorites = favorites.filter((id) => id !== petId);
+    } else {
+      user.favorites = [...favorites, petId];
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      message: alreadyFavorite ? "Removed from favorites" : "Added to favorites",
+      isFavorite: !alreadyFavorite,
+      favorites: user.favorites,
+    });
   } catch (error) {
     return res.status(500).json({ message: "Server error", error: error.message });
   }
