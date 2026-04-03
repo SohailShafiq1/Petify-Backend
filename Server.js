@@ -5,6 +5,7 @@ const dotenv = require("dotenv");
 const path = require("path");
 const authRoutes = require("./routes/authRoutes");
 const petRoutes = require("./routes/petRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/pets", petRoutes);
+app.use("/api/chats", chatRoutes);
 
 const startServer = async () => {
   try {

@@ -164,6 +164,47 @@ router.put("/:id", authMiddleware, async (req, res) => {
   }
 });
 
+// Buy pet (Cash on Delivery) - marks as sold
+router.post("/:id/buy", authMiddleware, async (req, res) => {
+  try {
+    const pet = await Pet.findById(req.params.id);
+
+    if (!pet) {
+      return res.status(404).json({ message: "Pet not found" });
+    }
+
+    if (!pet.isAvailable) {
+      return res.status(400).json({ message: "Pet is already sold" });
+    }
+
+    if (pet.ownerId === req.user.userId) {
+      return res.status(400).json({ message: "You cannot buy your own pet" });
+    }
+
+    const { buyerName, buyerContact, buyerAddress } = req.body;
+
+    if (!buyerName || !buyerContact || !buyerAddress) {
+      return res.status(400).json({
+        message: "Buyer name, contact number, and address are required",
+      });
+    }
+
+    pet.isAvailable = false;
+    pet.buyerName = buyerName.trim();
+    pet.buyerContact = buyerContact.trim();
+    pet.buyerAddress = buyerAddress.trim();
+    pet.soldAt = new Date();
+    await pet.save();
+
+    return res.status(200).json({
+      message: "Purchase successful. Cash on Delivery confirmed.",
+      pet,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
 // Delete pet
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {

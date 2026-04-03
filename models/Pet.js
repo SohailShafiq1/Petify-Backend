@@ -43,6 +43,22 @@ const petSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    buyerName: {
+      type: String,
+      default: null,
+    },
+    buyerContact: {
+      type: String,
+      default: null,
+    },
+    buyerAddress: {
+      type: String,
+      default: null,
+    },
+    soldAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
