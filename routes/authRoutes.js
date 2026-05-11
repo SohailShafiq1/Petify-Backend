@@ -6,12 +6,53 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+// Password validation regex: min 8 chars, 1 uppercase, 1 number, 1 special char
+const STRONG_PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+
+const validatePasswordStrength = (password) => {
+  const errors = [];
+
+  if (!password || password.length === 0) {
+    return ["Password is required"];
+  }
+
+  if (password.length < 8) {
+    errors.push("At least 8 characters");
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    errors.push("At least one uppercase letter (A-Z)");
+  }
+
+  if (!/[0-9]/.test(password)) {
+    errors.push("At least one number (0-9)");
+  }
+
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    errors.push('At least one special character (!@#$%^&*)');
+  }
+
+  return errors;
+};
+
 router.post("/signup", async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Name, email, and password are required" });
+    }
+
+    // Validate password strength
+    const passwordErrors = validatePasswordStrength(password);
+    if (passwordErrors.length > 0) {
+      return res.status(400).json({
+        message: "Password does not meet security requirements",
+        field: "password",
+        fieldErrors: {
+          password: passwordErrors.join("; "),
+        },
+      });
     }
 
     const existingUser = await User.findOne({ email });
