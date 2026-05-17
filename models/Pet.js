@@ -80,6 +80,33 @@ const petSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    reviews: [
+      {
+        buyerId: {
+          type: String,
+          required: true,
+        },
+        buyerName: {
+          type: String,
+          required: true,
+        },
+        rating: {
+          type: Number,
+          required: true,
+          min: 1,
+          max: 5,
+        },
+        comment: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   {
     timestamps: true,

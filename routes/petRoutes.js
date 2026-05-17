@@ -252,6 +252,64 @@ router.get("/favorites", authMiddleware, async (req, res) => {
   }
 });
 
+// Add a review for a purchased pet
+router.post('/:id/reviews', authMiddleware, async (req, res) => {
+  try {
+    const pet = await Pet.findById(req.params.id);
+
+    if (!pet) {
+      return res.status(404).json({ message: 'Pet not found' });
+    }
+
+    if (pet.buyerId !== req.user.userId) {
+      return res.status(403).json({ message: 'Only the buyer can review this listing' });
+    }
+
+    if (pet.isAvailable) {
+      return res.status(400).json({ message: 'You can only review a purchased pet' });
+    }
+
+    const { rating, comment } = req.body;
+    const ratingValue = Number(rating);
+    const trimmedComment = (comment || '').toString().trim();
+
+    if (!Number.isFinite(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+      return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+    }
+
+    if (!trimmedComment) {
+      return res.status(400).json({ message: 'Comment is required' });
+    }
+
+    pet.reviews = pet.reviews || [];
+    const alreadyReviewed = pet.reviews.some((review) => review.buyerId === req.user.userId);
+    if (alreadyReviewed) {
+      return res.status(400).json({ message: 'You have already reviewed this listing' });
+    }
+
+    const reviewer = await User.findById(req.user.userId);
+    const buyerName = reviewer?.name || req.user.email?.split('@')[0] || 'Buyer';
+
+    pet.reviews.push({
+      buyerId: req.user.userId,
+      buyerName,
+      rating: ratingValue,
+      comment: trimmedComment,
+      createdAt: new Date(),
+    });
+
+    await pet.save();
+
+    return res.status(201).json({
+      message: 'Review added successfully',
+      review: pet.reviews[pet.reviews.length - 1],
+      pet,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Get owner summary (listed/sold/available counts and basic owner info)
 router.get('/owner/:ownerId/summary', async (req, res) => {
   try {
@@ -278,6 +336,32 @@ router.get('/owner/:ownerId/summary', async (req, res) => {
     const soldCount = await Pet.countDocuments({ ownerId: { $in: candidates }, isAvailable: false });
     const availableCount = await Pet.countDocuments({ ownerId: { $in: candidates }, isAvailable: true });
 
+    const reviewedPets = await Pet.find({
+      ownerId: { $in: candidates },
+      reviews: { $exists: true, $ne: [] },
+    })
+      .select('name reviews buyerName buyerId createdAt')
+      .sort({ updatedAt: -1 });
+
+    const reviews = reviewedPets
+      .flatMap((pet) =>
+        (pet.reviews || []).map((review) => ({
+          petId: pet._id,
+          petName: pet.name,
+          buyerId: review.buyerId,
+          buyerName: review.buyerName,
+          rating: review.rating,
+          comment: review.comment,
+          createdAt: review.createdAt,
+        }))
+      )
+      .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt));
+
+    const reviewCount = reviews.length;
+    const averageRating = reviewCount > 0
+      ? reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / reviewCount
+      : 0;
+
     return res.status(200).json({
       owner: {
         ownerName: owner.name || (owner.email ? owner.email.split('@')[0] : 'Owner'),
@@ -286,6 +370,9 @@ router.get('/owner/:ownerId/summary', async (req, res) => {
       totalListed,
       soldCount,
       availableCount,
+      reviewCount,
+      averageRating,
+      reviews,
     });
   } catch (error) {
     return res.status(500).json({ message: 'Server error', error: error.message });
