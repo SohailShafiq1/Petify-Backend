@@ -252,6 +252,46 @@ router.get("/favorites", authMiddleware, async (req, res) => {
   }
 });
 
+// Get owner summary (listed/sold/available counts and basic owner info)
+router.get('/owner/:ownerId/summary', async (req, res) => {
+  try {
+    const ownerId = req.params.ownerId;
+    const owner = await User.findById(ownerId);
+
+    if (!owner) {
+      return res.status(404).json({ message: 'Owner not found' });
+    }
+
+    // Build candidate owner identifiers to handle cases where ownerId was stored
+    // as different string forms (token vs stringified ObjectId vs email/username)
+    const ownerIdString = ownerId;
+    const ownerObjectIdString = owner._id ? owner._id.toString() : null;
+    const ownerEmail = owner.email || null;
+    const ownerUsername = owner.email ? owner.email.split('@')[0] : null;
+
+    const candidates = [ownerIdString];
+    if (ownerObjectIdString && !candidates.includes(ownerObjectIdString)) candidates.push(ownerObjectIdString);
+    if (ownerEmail && !candidates.includes(ownerEmail)) candidates.push(ownerEmail);
+    if (ownerUsername && !candidates.includes(ownerUsername)) candidates.push(ownerUsername);
+
+    const totalListed = await Pet.countDocuments({ ownerId: { $in: candidates } });
+    const soldCount = await Pet.countDocuments({ ownerId: { $in: candidates }, isAvailable: false });
+    const availableCount = await Pet.countDocuments({ ownerId: { $in: candidates }, isAvailable: true });
+
+    return res.status(200).json({
+      owner: {
+        ownerName: owner.name || (owner.email ? owner.email.split('@')[0] : 'Owner'),
+        ownerContact: owner.contact || '',
+      },
+      totalListed,
+      soldCount,
+      availableCount,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Toggle favorite
 router.post("/:id/favorite", authMiddleware, async (req, res) => {
   try {
