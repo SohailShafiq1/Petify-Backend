@@ -5,6 +5,7 @@ const multer = require("multer");
 const Pet = require("../models/Pet");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/authMiddleware");
+const { analyzePetImage } = require("../utils/grokAnalyzer");
 
 const router = express.Router();
 
@@ -29,18 +30,58 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedMimes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-    if (allowedMimes.includes(file.mimetype)) {
+    const allowedExts = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+    
+    const fileExt = path.extname(file.originalname).toLowerCase();
+    const isMimeAllowed = allowedMimes.includes(file.mimetype);
+    const isExtAllowed = allowedExts.includes(fileExt);
+    
+    // Accept if MIME type matches OR file extension matches
+    if (isMimeAllowed || isExtAllowed) {
       cb(null, true);
     } else {
-      cb(new Error("Only image files are allowed"));
+      cb(new Error("Only image files are allowed (jpg, jpeg, png, gif, webp)"));
     }
   },
+});
+
+// Analyze pet image using Grok AI
+router.post("/analyze-image", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    // Analyze the image using Grok
+    const petDetails = await analyzePetImage(req.file.path);
+
+    return res.status(200).json({
+      message: "Image analyzed successfully",
+      petDetails,
+    });
+  } catch (error) {
+    console.error("Error analyzing image:", error.message);
+    // If the error contains an upstream HTTP response (e.g., from Grok), include details
+    const upstreamStatus = error.response?.status;
+    const upstreamBody = error.response?.data;
+    return res.status(502).json({
+      message: "Error analyzing image",
+      error: error.message,
+      upstreamStatus: upstreamStatus || null,
+      upstreamBody: upstreamBody || null,
+    });
+  } finally {
+    // Clean up uploaded file
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+  }
 });
 
 // Create pet
 router.post("/", authMiddleware, upload.single("image"), async (req, res) => {
   try {
-    const { name, category, age, description, price, ownerContact } = req.body;
+    const { name, category, age, description, price, ownerContact, breed, origin } = req.body;
 
     if (!name || !category || age === undefined || !description || !price || !ownerContact) {
       if (req.file) {
@@ -56,6 +97,8 @@ router.post("/", authMiddleware, upload.single("image"), async (req, res) => {
     const pet = await Pet.create({
       name,
       category,
+      breed: breed || null,
+      origin: origin || null,
       age: parseInt(age),
       description,
       price: parseFloat(price),

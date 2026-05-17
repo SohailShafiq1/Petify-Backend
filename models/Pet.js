@@ -11,6 +11,14 @@ const petSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    breed: {
+      type: String,
+      default: null,
+    },
+    origin: {
+      type: String,
+      default: null,
+    },
     age: {
       type: Number,
       required: true,
