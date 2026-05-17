@@ -188,16 +188,48 @@ router.get("/search", async (req, res) => {
       return res.status(200).json({ pets: [] });
     }
 
-    const pets = await Pet.find({
+    const buildQuery = (field) => ({
       isAvailable: true,
-      $or: [
-        { name: { $regex: query, $options: "i" } },
-        { category: { $regex: query, $options: "i" } },
-        { description: { $regex: query, $options: "i" } },
-      ],
+      [field]: { $regex: query, $options: "i" },
+    });
+
+    const breedMatches = await Pet.find(buildQuery("breed"))
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    const nameMatches = await Pet.find({
+      isAvailable: true,
+      name: { $regex: query, $options: "i" },
     })
       .sort({ createdAt: -1 })
       .limit(100);
+
+    const categoryMatches = await Pet.find({
+      isAvailable: true,
+      category: { $regex: query, $options: "i" },
+    })
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    const descriptionMatches = await Pet.find({
+      isAvailable: true,
+      description: { $regex: query, $options: "i" },
+    })
+      .sort({ createdAt: -1 })
+      .limit(100);
+
+    const seenIds = new Set();
+    const pets = [];
+
+    [breedMatches, nameMatches, categoryMatches, descriptionMatches].forEach((list) => {
+      list.forEach((pet) => {
+        const petId = pet._id.toString();
+        if (!seenIds.has(petId)) {
+          seenIds.add(petId);
+          pets.push(pet);
+        }
+      });
+    });
 
     return res.status(200).json({ pets });
   } catch (error) {
