@@ -124,7 +124,7 @@ router.post("/", authMiddleware, upload.single("image"), async (req, res) => {
 // Get all pets
 router.get("/", async (req, res) => {
   try {
-    const pets = await Pet.find({ isAvailable: true })
+    const pets = await Pet.find({})
       .sort({ createdAt: -1 })
       .limit(100);
 
@@ -171,7 +171,6 @@ router.get("/category/:category", async (req, res) => {
   try {
     const pets = await Pet.find({
       category: req.params.category,
-      isAvailable: true,
     }).sort({ createdAt: -1 });
 
     return res.status(200).json({ pets });
@@ -189,7 +188,6 @@ router.get("/search", async (req, res) => {
     }
 
     const buildQuery = (field) => ({
-      isAvailable: true,
       [field]: { $regex: query, $options: "i" },
     });
 
@@ -198,21 +196,18 @@ router.get("/search", async (req, res) => {
       .limit(100);
 
     const nameMatches = await Pet.find({
-      isAvailable: true,
       name: { $regex: query, $options: "i" },
     })
       .sort({ createdAt: -1 })
       .limit(100);
 
     const categoryMatches = await Pet.find({
-      isAvailable: true,
       category: { $regex: query, $options: "i" },
     })
       .sort({ createdAt: -1 })
       .limit(100);
 
     const descriptionMatches = await Pet.find({
-      isAvailable: true,
       description: { $regex: query, $options: "i" },
     })
       .sort({ createdAt: -1 })
